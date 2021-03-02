@@ -20,7 +20,7 @@ import asyncio
 from aiohttp import web
 
 from .request_validator import RequestValidator
-from .data import TwilioMessageEvent, TwilioStatusEvent
+from .data import TwilioMessageEvent, TwilioStatusEvent, TwilioConversationEvent, TwilioEventType
 from .. import portal as po
 
 if TYPE_CHECKING:
@@ -67,4 +67,31 @@ class TwilioHandler:
         self.log.debug(f"Received Twilio status event: {data}")
         portal = po.Portal.get_by_twid(data.receiver)
         await portal.handle_twilio_status(data)
+        return web.Response(status=204)
+
+    async def receive(self, request: web.Request) -> web.Response:
+        data, err = await self._validate_request(request, TwilioConversationEvent)
+        if err is not None:
+            return err
+        if data.event_type != TwilioEventType.ON_CONVERSATION_ADDED:
+            return None
+        self.log.debug(f"Received Twilio Conversation event: {data}")
+        # do stuff to create / join a room and add the room ID as the conversation friendly_name
+        # also add an "identity" with projected_address to the conversation
+        # these functions don't exist yet! still writing them.
+        #portal = po.Portal.get_by_twcid(data.id)
+        await portal.handle_twilio_conversation(data)
+        return web.Response(status=200)
+
+    async def receive(self, request: web.Request) -> web.Response:
+        data, err = await self._validate_request(request, TwilioConversationMessageEvent)
+        if err is not None:
+            return err
+        if data.event_type != TwilioEventType.ON_MESSAGE_ADDED:
+            return None
+        self.log.debug(f"Received Twilio Conversation Message event: {data}")
+        # do stuff to fetch the associated room ID from the conversation friendly_name and send
+        # the message to the room
+        #portal = po.Portal.get_by_twid(data.sender)
+        #await portal.handle_twilio_message(data)
         return web.Response(status=204)

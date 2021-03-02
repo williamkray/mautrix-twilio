@@ -27,7 +27,8 @@ from mautrix.appservice import IntentAPI
 
 from .db import Portal as DBPortal, Message as DBMessage
 from .twilio import (TwilioUserID, TwilioMessageID, TwilioClient, TwilioMessageEvent,
-                     TwilioStatusEvent, TwilioMessageStatus)
+                     TwilioStatusEvent, TwilioMessageStatus, TwilioConversationID,
+                     TwilioConversationEvent, TwilioConversationMessageEvent)
 from .formatter import whatsapp_to_matrix, matrix_to_whatsapp
 from . import puppet as p, user as u
 
@@ -47,8 +48,10 @@ class Portal(BasePortal):
 
     by_mxid: Dict[RoomID, 'Portal'] = {}
     by_twid: Dict[TwilioUserID, 'Portal'] = {}
+    by_twcid: Dict[TwilioConversationID, 'Portal'] = {}
 
     twid: TwilioUserID
+    twcid: TwilioConversationID
     mxid: Optional[RoomID]
 
     _db_instance: DBPortal
@@ -143,6 +146,19 @@ class Portal(BasePortal):
         self.by_mxid[self.mxid] = self
         await self.main_intent.join_room_by_id(self.mxid)
         return self.mxid
+
+    ## a handler for webhooks sent by the onConversationAdded event,
+    ## which should be configured to always happen in Twilio for any new message
+    ## that doesn't belong to a matching conversation (group of senders/recipients).
+    ## the webhook.py event that calls this passes in the webhook data payload
+    async def handle_twilio_conversation(self, conversation: TwilioConversationEvent) -> None:
+        ## the conversation will never have a friendly name unless this has already run, so
+        ## create the room and update the friendly_name
+        if not await self.create_matrix_room():
+            return
+        friendly_name = self.mxid
+        await update_conversation_name(conversation.id, friendly_name)
+
 
     async def handle_twilio_message(self, message: TwilioMessageEvent) -> None:
         if not await self.create_matrix_room():
@@ -249,6 +265,12 @@ class Portal(BasePortal):
 
         return None
 
+    @classmethod
+    def get_by_twcid(cls, twcid: TwilioConversationID, create: bool = True) -> Optional['Portal']:
+        try:
+            return cls.by_twcid[twcid]
+        except KeyError:
+            pass
 
 def init(context: 'Context') -> None:
     Portal.az, config, Portal.loop = context.core

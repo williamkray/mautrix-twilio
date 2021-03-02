@@ -23,12 +23,18 @@ from mautrix.types import SerializableAttrs, SerializableEnum
 TwilioMessageID = NewType('TwilioMessageID', str)
 TwilioUserID = NewType('TwilioUserID', str)
 TwilioAccountID = NewType('TwilioAccountID', str)
+TwilioConversationID = NewType('TwilioConversationID', str)
+TwilioConversationName = NewType('TwilioConversationName', str)
 
 
 class TwilioEventType(SerializableEnum):
     DELIVERED = "DELIVERED"
     READ = "READ"
     UNDELIVERED = "UNDELIVERED"
+
+    # Event Types for Conversation Events
+    ON_CONVERSATION_ADDED = "onConversationAdded"
+    ON_MESSAGE_ADDED = "onMessageAdded"
 
 
 class TwilioMessageStatus(SerializableEnum):
@@ -54,6 +60,21 @@ class TwilioMedia(SerializableAttrs['TwilioMedia']):
     mime_type: str = attr.ib(default=None, metadata={"json": "MediaContentType0"})
     url: str = attr.ib(default=None, metadata={"json": "MediaUrl0"})
 
+@dataclass
+class TwilioConversationEvent(SerializableAttrs['TwilioEvent']):
+    id: TwilioConversationID = attr.ib(metadata={"json": "ConversationSid"})
+    name: TwilioConversationName = attr.ib(metadata={"json": "FriendlyName"})
+    event_type: TwilioEventType = attr.ib(metadata={"json": "EventType"})
+
+@dataclass
+class TwilioConversationMessageEvent(SerializableAttrs['TwilioEvent']):
+    id: TwilioMessageID = attr.ib(metadata={"json": "MessageSid"})
+    conversation: TwilioConversationID = attr.ib(metadata={"json": "ConversationSid"})
+    event_type: TwilioEventType = attr.ib(metadata={"json": "EventType"})
+    sender: TwilioUserID = attr.ib(metadata={"json": "Author"})
+
+    body: str = attr.ib(metadata={"json": "Body"})
+    media: TwilioMedia = attr.ib(default=None, metadata={"flatten": True})
 
 @dataclass
 class TwilioMessageEvent(SerializableAttrs['TwilioEvent']):
